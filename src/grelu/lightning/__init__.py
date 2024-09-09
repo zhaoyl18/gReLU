@@ -256,7 +256,8 @@ class LightningModel(pl.LightningModule):
         if self.train_params["task"] == "binary":
             metrics.update(y_hat, y.type(torch.long))
         elif self.train_params["task"] == "multiclass":
-            metrics.update(y_hat, y.type(torch.long).argmax(axis=1))
+            # metrics.update(y_hat, y.type(torch.long).argmax(axis=1))
+            metrics.update(y_hat, y.type(torch.long))
         else:
             metrics.update(y_hat, y)
 
@@ -300,6 +301,10 @@ class LightningModel(pl.LightningModule):
 
     def training_step(self, batch: Tensor, batch_idx: int) -> Tensor:
         x, y = batch
+        
+        if isinstance(self.loss, nn.CrossEntropyLoss):
+            y = y.view(-1,1).to(torch.long)
+        
         logits = self.forward(x, logits=True)
         loss = self.loss(logits, y)
         self.log(
@@ -315,6 +320,10 @@ class LightningModel(pl.LightningModule):
     def validation_step(self, batch: Tensor, batch_idx: int) -> Tensor:
         x, y = batch
         logits = self.forward(x, logits=True)
+        
+        if isinstance(self.loss, nn.CrossEntropyLoss):
+            y = y.view(-1,1).to(torch.long)
+        
         loss = self.loss(logits, y)
         y_hat = self.activation(logits)
         self.log(
@@ -354,6 +363,10 @@ class LightningModel(pl.LightningModule):
         Calculate metrics after a single test step
         """
         x, y = batch
+        
+        if isinstance(self.loss, nn.CrossEntropyLoss):
+            y = y.view(-1,1).to(torch.long)
+        
         logits = self.forward(x, logits=True)
         loss = self.loss(logits, y)
         y_hat = self.activation(logits)
@@ -815,6 +828,11 @@ class LightningModel(pl.LightningModule):
             k: v.detach().cpu().numpy() for k, v in self.computed_test_metrics.items()
         }
         self.test_metrics.reset()
+        
+        # print(metric_dict)
+        # print(self.data_params["tasks"]["name"])
+        self.data_params["tasks"]["name"] = [f"task_{i}" for i in range(self.model.head.n_tasks)]
+        
         return pd.DataFrame(metric_dict, index=self.data_params["tasks"]["name"])
 
     def embed_on_dataset(
